@@ -1,0 +1,10 @@
+# Site settings
+title: Viewstar`s Blog
+email: starv8132@gmail.com
+description: Nothing More ...
+baseurl: "" # the subpath of your site, e.g. /blog/
+url: "" # the base hostname & protocol for your site
+github_username:  Viewstar000
+
+# Build settings
+markdown: kramdown
