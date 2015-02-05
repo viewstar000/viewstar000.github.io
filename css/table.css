@@ -1,0 +1,15 @@
+table {
+    width: 100%;
+    margin-bottom: 16px;
+    border-style: solid;
+    border-width: 2px;
+    border-color: #CCCCFF;
+}
+
+table th{
+    background: #CCCCFF;
+}
+
+table td{
+    background: #EEEEFF;
+}
