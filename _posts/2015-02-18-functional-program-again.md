@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 又见函数式编程
-categories: python functional
+categories: python
 data: 2015-02-18 15:23:10
 tags: python functional dsl 高阶函数
 ---

@@ -2,7 +2,8 @@
 layout: post
 title:  "小试机器学习用于内容质量评估"
 date:   2015-02-05 19:48:17
-categories: python ml
+categories: python
+tags: python machine-learning ml 分类器 朴素贝叶斯 神经网络
 ---
 
 

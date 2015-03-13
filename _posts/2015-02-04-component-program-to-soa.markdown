@@ -2,7 +2,8 @@
 layout: post
 title:  "从组件化到SOA"
 date:   2015-02-04 15:48:17
-categories: python soa
+categories: python
+tags: python soa component-program
 ---
 
 说到组件化编程，不能不提COM，作为WINDOWS的核心技术之一，不论是其功能的完备性，还是其复杂性，都是首屈一指的，不过本文不打算去讨论COM（其实是笔者对COM的了解也不算多啦），而是用更简单的例子来演示什么是组件化编程，以及其思想是如何影响架构设计的。
