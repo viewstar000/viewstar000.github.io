@@ -3,6 +3,7 @@ layout: post
 title: 用PYTHON进行系统级编程
 categories: python
 tags: python pypy cffi system-program
+description: PYTHON做为一种通用的高级语言，在应用级开发方面的能力是有目其睹的，那么，它是否也能用于系统级开发呢？
 published: True
 ---
 

@@ -12,6 +12,18 @@ layout: default
     {{ content }}
   </article>
 
+<hr />
+更多文章：
+<ul>
+{% for post in site.posts limit:10 %}
+  <li>
+      <a href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
+      <span ><small>{{ post.date | date: "%b %-d, %Y" }}</small></span>
+  </li>
+{% endfor %}
+</ul>
+
+<hr />
 {% assign tagStr = '' %}
 {% capture url %}{{ site.url }}{{ page.url }}{% endcapture %}
 {% if page.shortUrl != null %}
@@ -23,7 +35,6 @@ layout: default
 {% endif %}
 {% endfor %}
 {% endif %}
-<hr />
 <p class="social-share-text no-indent">Share</p>
 <div class="social-share">
 <a class="social-share-element social-twitter" 
