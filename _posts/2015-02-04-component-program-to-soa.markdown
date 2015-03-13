@@ -2,7 +2,7 @@
 layout: post
 title:  "从组件化到SOA"
 date:   2015-02-04 15:48:17
-categories: python
+categories: python soa
 tags: python soa component-program
 ---
 
