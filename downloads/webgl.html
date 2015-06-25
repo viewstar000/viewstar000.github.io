@@ -1,0 +1,212 @@
+<html>
+<head>
+    <meta charset="utf-8">
+    <!-- <meta name="viewport" content="width=device-width height=device-height initial-scale=1" />
+     -->
+    <title>DEMO</title>
+    <script type="text/javascript" src="jquery-2.1.0.min.js"></script>
+</head>
+<body style="margin:0px">
+    <canvas id="glcanvas" width="800" height="800" style="width:100%;height:100%">
+        Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
+    </canvas>
+    <div id="info_panel" style="position:fixed;left:0px;top:0px;background-color:rgba(255, 255, 255, 0.8)">
+        Info
+    </div>
+
+    <script id="shader-fs" type="x-shader/x-fragment">
+
+    uniform mediump vec2 posVec;
+    uniform mediump float fading;
+
+    void main(void) {
+        if(distance(posVec, vec2(gl_FragCoord)) <= fading){
+            gl_FragColor = vec4(fading / 100.0, fading / 100.0, fading / 100.0, 1.0);
+        }else{
+            gl_FragColor = vec4(0, 0, 0, 1.0);
+        }
+        //gl_FragColor = vec4(fading / 100.0, abs(sin(gl_FragCoord[1]/10.0)), abs(sin(gl_FragCoord[0]/10.0)), 1.0);
+    }
+    </script>
+
+    <script id="shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+
+    //uniform mat4 uMVMatrix;
+    //uniform mat4 uPMatrix;
+
+    void main(void) {
+        //gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = vec4(aVertexPosition, 1.0);
+    }
+    </script>
+
+    <script type="text/javascript" language="javascript">
+    var gl = null;
+    var cx = 0;
+    var cy = 0;
+    var fading = 0;
+
+    function getShader(gl, id) {
+        var shaderScript, theSource, currentChild, shader;
+
+        shaderScript = document.getElementById(id);
+
+        if (!shaderScript) {
+            return null;
+        }
+
+        theSource = "";
+        currentChild = shaderScript.firstChild;
+
+        while(currentChild) {
+            if (currentChild.nodeType == currentChild.TEXT_NODE) {
+                theSource += currentChild.textContent;
+            }
+
+            currentChild = currentChild.nextSibling;
+        }
+
+        if (shaderScript.type == "x-shader/x-fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "x-shader/x-vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+            // Unknown shader type
+            return null;
+        }
+
+        gl.shaderSource(shader, theSource);
+    
+        // Compile the shader program
+        gl.compileShader(shader);  
+    
+        // See if it compiled successfully
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {  
+            alert("An error occurred compiling the shaders: " + gl.getShaderInfoLog(shader));  
+            return null;  
+        }
+
+        return shader;
+    }
+
+    function initWebGL(canvas) {
+        // 创建全局变量
+        window.gl = null;
+
+        try {
+            // 尝试创建标准上下文，如果失败，回退到试验性上下文
+            gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+        }
+        catch(e) {}
+
+        // 如果没有GL上下文，马上放弃
+        if (!gl) {
+            alert("Unable to initialize WebGL. Your browser may not support it.");
+        }
+    }
+
+    var vertexPositionAttribute = null;
+    var shaderProgram = null;
+
+    function initShaders() {
+        var fragmentShader = getShader(gl, "shader-fs");
+        var vertexShader = getShader(gl, "shader-vs");
+
+        // 创建着色器
+
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        // 如果创建着色器失败
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Unable to initialize the shader program.");
+        }
+
+        gl.useProgram(shaderProgram);
+
+        vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(vertexPositionAttribute);
+    }
+
+    //var horizAspect = 480.0/640.0;
+    var squareVerticesBuffer = null;
+
+    function initBuffers() {
+        squareVerticesBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
+
+        var vertices = [
+            1,  1,  0.0,
+            -1, 1,  0.0,
+            1,  -1, 0.0,
+            -1, -1, 0.0
+        ];
+
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    }
+
+    function drawScene() {
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        //perspectiveMatrix = makePerspective(45, 640.0/480.0, 0.1, 100.0);
+
+        //loadIdentity();
+        //mvTranslate([-0.0, 0.0, -6.0]);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
+        gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
+
+        var pPosVec = gl.getUniformLocation(shaderProgram, "posVec");
+        gl.uniform2fv(pPosVec, new Float32Array([cx, cy]));
+        var pfading = gl.getUniformLocation(shaderProgram, "fading");
+        gl.uniform1f(pfading, fading);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    $(window).resize(function(){
+        //var off = $("#glcanvas").offset();
+        //var w = $("#glcanvas").width() + off.left;
+        //var h = $("#glcanvas").height() + off.top;
+        //console.log("Window Size " + w + "x" + h);
+        //("#glcanvas").width(w);
+        //$("#glcanvas").height(h);
+        if(gl){
+            gl.viewport(0, 0, 800, 800);
+            drawScene();
+        }
+    });
+
+    $(document).ready(function () {
+        var canvas = document.getElementById("glcanvas");
+        initWebGL(canvas);      // 初始化 GL 上下文
+        initShaders();
+        initBuffers();
+        // 只有在 WebGL 可用的时候才继续
+        if (gl) {
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);                      // 设置擦除颜色为黑色，不透明
+            gl.enable(gl.DEPTH_TEST);                               // 开启“深度测试”, Z-缓存
+            gl.depthFunc(gl.LEQUAL);                                // 这里设置深度测试，满足（深度小或相等的时候才渲染）
+            gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);      // 清除深度缓存的颜色
+        }
+        $(window).resize();
+        $('#glcanvas').click(function (e) {
+            cx = e.pageX;
+            cy = 800 - e.pageY;
+            fading = 100;
+        });
+        setInterval(function(){
+            if (fading > 0){
+                fading -= 1;
+                $('#info_panel').text('Info cx=' + cx + ' cy=' + cy + ' fading=' + fading);
+                drawScene();
+            }
+        }, 50);
+    });
+    </script>
+</body>
+</html>
