@@ -1,182 +1,275 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <!-- <meta name="viewport" content="width=device-width height=device-height initial-scale=1" />
-     -->
+    <meta name="viewport" content="width=device-width height=device-height initial-scale=1" />
     <title>DEMO</title>
     <script type="text/javascript" src="jquery-2.1.0.min.js"></script>
+    <script type="text/javascript" src="shader.js"></script>
+    <script type="text/javascript" src="buffer.js"></script>
 </head>
 <body style="margin:0px">
-    <canvas id="glcanvas" width="800" height="800" style="width:100%;height:100%">
+    <canvas id="glcanvas" width="512" height="512" style="width:100%;height:100%">
         Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
     </canvas>
     <div id="info_panel" style="position:fixed;left:0px;top:0px;background-color:rgba(255, 255, 255, 0.8)">
         Info
     </div>
 
-    <script id="shader-fs" type="x-shader/x-fragment">
-
-    uniform mediump vec2 posVec;
-    uniform mediump float fading;
-
-    void main(void) {
-        if(distance(posVec, vec2(gl_FragCoord)) <= fading){
-            gl_FragColor = vec4(fading / 100.0, fading / 100.0, fading / 100.0, 1.0);
-        }else{
-            gl_FragColor = vec4(0, 0, 0, 1.0);
-        }
-        //gl_FragColor = vec4(fading / 100.0, abs(sin(gl_FragCoord[1]/10.0)), abs(sin(gl_FragCoord[0]/10.0)), 1.0);
-    }
-    </script>
+    
 
     <script id="shader-vs" type="x-shader/x-vertex">
-    attribute vec3 aVertexPosition;
+    attribute   vec2    vertexPosition;
+    attribute   vec2    textureCoord;
+    //attribute   vec2    vertexCenter;
+    //attribute   float   vertexFading;
+    varying     mediump vec2    vTextureCoord;
+    varying     mediump vec2    vColorCenter;
+    //varying     mediump float   colorFading;
 
     //uniform mat4 uMVMatrix;
     //uniform mat4 uPMatrix;
 
     void main(void) {
         //gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
-        gl_Position = vec4(aVertexPosition, 1.0);
+        gl_Position     = vec4(vertexPosition, 0.0, 1.0);
+        vTextureCoord   = textureCoord;
+        //vColorCenter     = vertexCenter;
+        //colorFading     = vertexFading;
+    }
+    </script>
+
+    <script id="shader-fs" type="x-shader/x-fragment">
+
+    uniform     mediump     int     flag;
+    uniform     mediump     vec4    color;
+    uniform     mediump     vec2    posVec;
+    uniform     mediump     float   ratio;
+    uniform     sampler2D   sampler;
+    //uniform mediump float fading;
+    varying     mediump vec2    vTextureCoord;
+    //varying     mediump vec2    vColorCenter;
+
+    void main(void) {
+        if (flag == 0)
+        {
+            gl_FragColor = abs(texture2D(sampler, vTextureCoord)  - vec4(0.01, 0.01, 0.01, 0));
+        }
+        else if (flag == 1)
+        {
+            mediump float d = sqrt(((posVec[0]-gl_FragCoord[0])*ratio) * ((posVec[0]-gl_FragCoord[0])*ratio) + (posVec[1]-gl_FragCoord[1]) * (posVec[1]-gl_FragCoord[1]));
+            if(d < 100.0){
+                gl_FragColor = color;
+            }else{
+                gl_FragColor = abs(texture2D(sampler, vTextureCoord)  - vec4(0.01, 0.01, 0.01, 0));
+            }
+        }
+        else if (flag == 2)
+        {
+            gl_FragColor = texture2D(sampler, vTextureCoord);
+        }
+        else
+        {
+            gl_FragColor = vec4(0,0,0,1);
+        }
+        // if(distance(colorCenter, vec2(gl_FragCoord)) <= colorFading){
+        //     gl_FragColor = vec4(colorFading / 100.0, colorFading / 100.0, colorFading / 100.0, 1.0);
+        // }else{
+        //     gl_FragColor = vec4(0, 0, 0, 1.0);
+        // }
+        //gl_FragColor = vec4(fading / 100.0, abs(sin(gl_FragCoord[1]/10.0)), abs(sin(gl_FragCoord[0]/10.0)), 1.0);
     }
     </script>
 
     <script type="text/javascript" language="javascript">
     var gl = null;
+    var shader = null;
+    var buffers = {};
+    var cubeTexture = null;
+
     var cx = 0;
     var cy = 0;
-    var fading = 0;
+    var cw = $("#glcanvas").attr('width') || 512;
+    var ch = $("#glcanvas").attr('height') || 512;
+    var vw = cw;
+    var vh = ch; 
+    var fading = 100;
+    var hasNew = false;
 
-    function getShader(gl, id) {
-        var shaderScript, theSource, currentChild, shader;
-
-        shaderScript = document.getElementById(id);
-
-        if (!shaderScript) {
-            return null;
-        }
-
-        theSource = "";
-        currentChild = shaderScript.firstChild;
-
-        while(currentChild) {
-            if (currentChild.nodeType == currentChild.TEXT_NODE) {
-                theSource += currentChild.textContent;
-            }
-
-            currentChild = currentChild.nextSibling;
-        }
-
-        if (shaderScript.type == "x-shader/x-fragment") {
-            shader = gl.createShader(gl.FRAGMENT_SHADER);
-        } else if (shaderScript.type == "x-shader/x-vertex") {
-            shader = gl.createShader(gl.VERTEX_SHADER);
-        } else {
-            // Unknown shader type
-            return null;
-        }
-
-        gl.shaderSource(shader, theSource);
-    
-        // Compile the shader program
-        gl.compileShader(shader);  
-    
-        // See if it compiled successfully
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {  
-            alert("An error occurred compiling the shaders: " + gl.getShaderInfoLog(shader));  
-            return null;  
-        }
-
-        return shader;
-    }
+    var frameCount = 0;
 
     function initWebGL(canvas) {
         // 创建全局变量
-        window.gl = null;
-
+        gl = null;
         try {
             // 尝试创建标准上下文，如果失败，回退到试验性上下文
             gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
         }
         catch(e) {}
-
         // 如果没有GL上下文，马上放弃
         if (!gl) {
             alert("Unable to initialize WebGL. Your browser may not support it.");
         }
+        return gl;
     }
 
-    var vertexPositionAttribute = null;
-    var shaderProgram = null;
+    function initShaders (gl) {
+        shader = new GLShader(gl);
+        shader.setShaderScript('shader-vs', 'shader-fs');
+        return shader;
+    }
 
-    function initShaders() {
-        var fragmentShader = getShader(gl, "shader-fs");
-        var vertexShader = getShader(gl, "shader-vs");
+    function initTextures() {
+        cubeTexture = gl.createTexture();
+        cubeImage = new Image();
+        cubeImage.onload = function() { handleTextureLoaded(cubeImage, cubeTexture); }
+        cubeImage.src = "texture.png";
+    }
 
-        // 创建着色器
+    function handleTextureLoaded(image, texture) {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+        // gl.NEAREST is also allowed, instead of gl.LINEAR, as neither mipmap.
+        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        // Prevents s-coordinate wrapping (repeating).
+        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        // Prevents t-coordinate wrapping (repeating).
+        //l.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    }
 
-        shaderProgram = gl.createProgram();
-        gl.attachShader(shaderProgram, vertexShader);
-        gl.attachShader(shaderProgram, fragmentShader);
-        gl.linkProgram(shaderProgram);
+    var rttFramebuffer;
+    var rttRenderBuffer;
+    var rttTexture;
 
-        // 如果创建着色器失败
+    function initTextureFramebuffer() {
+        rttFramebuffer = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, rttFramebuffer);
+        rttFramebuffer.width = cw;
+        rttFramebuffer.height = ch;
 
-        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-            alert("Unable to initialize the shader program.");
+        rttTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, rttTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, rttFramebuffer.width, rttFramebuffer.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        
+        rttRenderBuffer = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER, rttRenderBuffer);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, rttFramebuffer.width, rttFramebuffer.height);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, rttTexture, 0);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rttRenderBuffer);
+
+        gl.clearColor(0.0, 0.0, 0.0, 1.0); 
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
+    function initBuffers(gl) {
+        buffers = {};
+        buffers.rectA = new GLFloatBuffer(gl, gl.ARRAY_BUFFER, [
+            -1,   1,
+             1,   1,
+             1,   -1,
+            -1,   -1,
+        ]);
+
+        buffers.rectB = new GLFloatBuffer(gl, gl.ARRAY_BUFFER, [
+             0,   0,
+             1,   0,
+             1,  -1,
+             0,  -1,
+        ]);
+
+        buffers.texCoord = new GLFloatBuffer(gl, gl.ARRAY_BUFFER, [
+             0,   1,
+             1,   1,
+             1,   0,
+             0,   0,
+        ]);
+
+        return buffers;
+    }
+
+    function initScene(gl) {
+        if (gl) {  // 只有在 WebGL 可用的时候才继续
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);                      // 设置擦除颜色为黑色，不透明
+            gl.enable(gl.DEPTH_TEST);                               // 开启“深度测试”, Z-缓存
+            gl.depthFunc(gl.LEQUAL);                                // 这里设置深度测试，满足（深度小或相等的时候才渲染）
+            gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);      // 清除深度缓存的颜色
         }
-
-        gl.useProgram(shaderProgram);
-
-        vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-        gl.enableVertexAttribArray(vertexPositionAttribute);
-    }
-
-    //var horizAspect = 480.0/640.0;
-    var squareVerticesBuffer = null;
-
-    function initBuffers() {
-        squareVerticesBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
-
-        var vertices = [
-            1,  1,  0.0,
-            -1, 1,  0.0,
-            1,  -1, 0.0,
-            -1, -1, 0.0
-        ];
-
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
     }
 
     function drawScene() {
+
+        // ---------------------------------------------------------------------
+        gl.bindFramebuffer(gl.FRAMEBUFFER, rttFramebuffer);
+        
+        //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, rttTexture);
+        gl.uniform1i(shader.uniform("sampler"), 0);
+
+        if(hasNew){
+            buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
+            buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
+            gl.uniform1i(shader.uniform('flag'), 1);
+            gl.uniform4f(shader.uniform('color'), 1.0, 1.0, 1.0, 1.0);
+            gl.uniform2f(shader.uniform('posVec'), cx, cy);
+            gl.uniform1f(shader.uniform('ratio'), vw / vh);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+            hasNew = false;
+        }else{
+            buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
+            buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
+            gl.uniform1i(shader.uniform('flag'), 0);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        }
+
+        gl.bindTexture(gl.TEXTURE_2D, rttTexture);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        // ---------------------------------------------------------------------
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        //perspectiveMatrix = makePerspective(45, 640.0/480.0, 0.1, 100.0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, rttTexture);
+        gl.uniform1i(shader.uniform("sampler"), 0);
 
-        //loadIdentity();
-        //mvTranslate([-0.0, 0.0, -6.0]);
+        buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
+        buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
+        gl.uniform1i(shader.uniform('flag'), 2);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        // ---------------------------------------------------------------------
+        frameCount ++;
+    }
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
-        gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
+    function refreshPage () {
+        if (fading > 0){
+            fading -= 1;
+            drawScene();
+        }
+        requestAnimationFrame(refreshPage);
+    }
 
-        var pPosVec = gl.getUniformLocation(shaderProgram, "posVec");
-        gl.uniform2fv(pPosVec, new Float32Array([cx, cy]));
-        var pfading = gl.getUniformLocation(shaderProgram, "fading");
-        gl.uniform1f(pfading, fading);
-
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    function showInfo () {
+        $('#info_panel').text('Info cx=' + cx + ' cy=' + cy + ' FPS=' + frameCount);
+        frameCount = 0;
     }
 
     $(window).resize(function(){
-        //var off = $("#glcanvas").offset();
-        //var w = $("#glcanvas").width() + off.left;
-        //var h = $("#glcanvas").height() + off.top;
-        //console.log("Window Size " + w + "x" + h);
-        //("#glcanvas").width(w);
-        //$("#glcanvas").height(h);
+        vw = $("#glcanvas").width();
+        vh = $("#glcanvas").height();
         if(gl){
-            gl.viewport(0, 0, 800, 800);
+            gl.viewport(0, 0, cw, ch);
             drawScene();
         }
     });
@@ -184,28 +277,20 @@
     $(document).ready(function () {
         var canvas = document.getElementById("glcanvas");
         initWebGL(canvas);      // 初始化 GL 上下文
-        initShaders();
-        initBuffers();
-        // 只有在 WebGL 可用的时候才继续
-        if (gl) {
-            gl.clearColor(0.0, 0.0, 0.0, 1.0);                      // 设置擦除颜色为黑色，不透明
-            gl.enable(gl.DEPTH_TEST);                               // 开启“深度测试”, Z-缓存
-            gl.depthFunc(gl.LEQUAL);                                // 这里设置深度测试，满足（深度小或相等的时候才渲染）
-            gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);      // 清除深度缓存的颜色
-        }
+        initShaders(gl);
+        initTextureFramebuffer();
+        initTextures();
+        initBuffers(gl);
+        initScene();
         $(window).resize();
         $('#glcanvas').click(function (e) {
-            cx = e.pageX;
-            cy = 800 - e.pageY;
+            cx = e.pageX * cw / vw;
+            cy = ch - e.pageY * ch / vh;
+            hasNew = true;
             fading = 100;
         });
-        setInterval(function(){
-            if (fading > 0){
-                fading -= 1;
-                $('#info_panel').text('Info cx=' + cx + ' cy=' + cy + ' fading=' + fading);
-                drawScene();
-            }
-        }, 50);
+        window.setInterval(showInfo, 1000);
+        refreshPage();
     });
     </script>
 </body>
