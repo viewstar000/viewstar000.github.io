@@ -6,6 +6,7 @@
     <script type="text/javascript" src="jquery-2.1.0.min.js"></script>
     <script type="text/javascript" src="shader.js"></script>
     <script type="text/javascript" src="buffer.js"></script>
+    <script type="text/javascript" src="texture.js"></script>
 </head>
 <body style="margin:0px">
     <canvas id="glcanvas" width="512" height="512" style="width:100%;height:100%">
@@ -20,11 +21,8 @@
     <script id="shader-vs" type="x-shader/x-vertex">
     attribute   vec2    vertexPosition;
     attribute   vec2    textureCoord;
-    //attribute   vec2    vertexCenter;
-    //attribute   float   vertexFading;
     varying     mediump vec2    vTextureCoord;
     varying     mediump vec2    vColorCenter;
-    //varying     mediump float   colorFading;
 
     //uniform mat4 uMVMatrix;
     //uniform mat4 uPMatrix;
@@ -33,8 +31,6 @@
         //gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
         gl_Position     = vec4(vertexPosition, 0.0, 1.0);
         vTextureCoord   = textureCoord;
-        //vColorCenter     = vertexCenter;
-        //colorFading     = vertexFading;
     }
     </script>
 
@@ -44,47 +40,41 @@
     uniform     mediump     vec4    color;
     uniform     mediump     vec2    posVec;
     uniform     mediump     float   ratio;
-    uniform     sampler2D   sampler;
-    //uniform mediump float fading;
+    uniform     sampler2D   samplerBack;
+    uniform     sampler2D   samplerFront;
     varying     mediump vec2    vTextureCoord;
-    //varying     mediump vec2    vColorCenter;
 
     void main(void) {
         if (flag == 0)
         {
-            gl_FragColor = abs(texture2D(sampler, vTextureCoord)  - vec4(0.01, 0.01, 0.01, 0));
+            gl_FragColor = abs(texture2D(samplerBack, vTextureCoord)  - vec4(0.01, 0.01, 0.01, 0));
         }
         else if (flag == 1)
         {
             mediump float d = sqrt(((posVec[0]-gl_FragCoord[0])*ratio) * ((posVec[0]-gl_FragCoord[0])*ratio) + (posVec[1]-gl_FragCoord[1]) * (posVec[1]-gl_FragCoord[1]));
-            if(d < 100.0){
-                gl_FragColor = color;
+            if(d < 80.0){
+                gl_FragColor = texture2D(samplerFront, vTextureCoord);
             }else{
-                gl_FragColor = abs(texture2D(sampler, vTextureCoord)  - vec4(0.01, 0.01, 0.01, 0));
+                gl_FragColor = abs(texture2D(samplerBack, vTextureCoord)  - vec4(0.01, 0.01, 0.01, 0));
             }
         }
         else if (flag == 2)
         {
-            gl_FragColor = texture2D(sampler, vTextureCoord);
+            gl_FragColor = texture2D(samplerBack, vTextureCoord);
         }
         else
         {
             gl_FragColor = vec4(0,0,0,1);
         }
-        // if(distance(colorCenter, vec2(gl_FragCoord)) <= colorFading){
-        //     gl_FragColor = vec4(colorFading / 100.0, colorFading / 100.0, colorFading / 100.0, 1.0);
-        // }else{
-        //     gl_FragColor = vec4(0, 0, 0, 1.0);
-        // }
-        //gl_FragColor = vec4(fading / 100.0, abs(sin(gl_FragCoord[1]/10.0)), abs(sin(gl_FragCoord[0]/10.0)), 1.0);
     }
     </script>
 
     <script type="text/javascript" language="javascript">
-    var gl = null;
-    var shader = null;
-    var buffers = {};
-    var cubeTexture = null;
+    var gl                  = null;
+    var shader              = null;
+    var buffers             = {};
+    var imageTexture        = null;
+    var frameBufferTexture  = null;
 
     var cx = 0;
     var cy = 0;
@@ -118,57 +108,10 @@
         return shader;
     }
 
-    function initTextures() {
-        cubeTexture = gl.createTexture();
-        cubeImage = new Image();
-        cubeImage.onload = function() { handleTextureLoaded(cubeImage, cubeTexture); }
-        cubeImage.src = "texture.png";
-    }
-
-    function handleTextureLoaded(image, texture) {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
-        // gl.NEAREST is also allowed, instead of gl.LINEAR, as neither mipmap.
-        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        // Prevents s-coordinate wrapping (repeating).
-        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        // Prevents t-coordinate wrapping (repeating).
-        //l.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-    }
-
-    var rttFramebuffer;
-    var rttRenderBuffer;
-    var rttTexture;
-
-    function initTextureFramebuffer() {
-        rttFramebuffer = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, rttFramebuffer);
-        rttFramebuffer.width = cw;
-        rttFramebuffer.height = ch;
-
-        rttTexture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, rttTexture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, rttFramebuffer.width, rttFramebuffer.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        
-        rttRenderBuffer = gl.createRenderbuffer();
-        gl.bindRenderbuffer(gl.RENDERBUFFER, rttRenderBuffer);
-        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, rttFramebuffer.width, rttFramebuffer.height);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, rttTexture, 0);
-        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rttRenderBuffer);
-
-        gl.clearColor(0.0, 0.0, 0.0, 1.0); 
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-        gl.bindTexture(gl.TEXTURE_2D, null);
-        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    function initTextures(gl) {
+        imageTexture = new GLTexture(gl);
+        imageTexture.loadImage('texture.png');
+        frameBufferTexture = new GLFrameBufferTexture(gl, null, cw, ch);
     }
 
     function initBuffers(gl) {
@@ -209,12 +152,11 @@
     function drawScene() {
 
         // ---------------------------------------------------------------------
-        gl.bindFramebuffer(gl.FRAMEBUFFER, rttFramebuffer);
+        frameBufferTexture.begin();
         
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, rttTexture);
-        gl.uniform1i(shader.uniform("sampler"), 0);
+        frameBufferTexture.activeWith(shader, 0, "samplerBack");
+        imageTexture.activeWith(shader, 1, "samplerFront");
 
         if(hasNew){
             buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
@@ -232,17 +174,11 @@
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
         }
 
-        gl.bindTexture(gl.TEXTURE_2D, rttTexture);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        frameBufferTexture.end();
         // ---------------------------------------------------------------------
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, rttTexture);
-        gl.uniform1i(shader.uniform("sampler"), 0);
+        frameBufferTexture.activeWith(shader, 0, "samplerBack");
 
         buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
         buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
@@ -278,10 +214,9 @@
         var canvas = document.getElementById("glcanvas");
         initWebGL(canvas);      // 初始化 GL 上下文
         initShaders(gl);
-        initTextureFramebuffer();
-        initTextures();
+        initTextures(gl);
         initBuffers(gl);
-        initScene();
+        initScene(gl);
         $(window).resize();
         $('#glcanvas').click(function (e) {
             cx = e.pageX * cw / vw;
