@@ -12,8 +12,11 @@
     <canvas id="glcanvas" width="512" height="512" style="width:100%;height:100%">
         Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
     </canvas>
-    <div id="info_panel" style="position:fixed;left:0px;top:0px;background-color:rgba(255, 255, 255, 0.8)">
+    <div id="info_panel" style="position:fixed;left:0px;top:0px;color:white">
         Info
+    </div>
+    <div id="btn_fullscreen" style="position:fixed;right:0px;bottom:0px;display:inline;color:white;cursor:pointer">
+        Full Screen
     </div>
 
     
@@ -223,6 +226,14 @@
         }
     }
 
+    function requestFullScreen () {
+        var element = document.getElementById('glcanvas');
+        var requestMethod = element.requestFullScreen || element.webkitRequestFullScreen || element.mozRequestFullScreen || element.msRequestFullScreen;
+
+        if (requestMethod) 
+            requestMethod.call(element);
+    }
+
     $(window).resize(function(){
         vw = $("#glcanvas").width();
         vh = $("#glcanvas").height();
@@ -233,8 +244,7 @@
     });
 
     $(document).ready(function () {
-        var canvas = document.getElementById("glcanvas");
-        initWebGL(canvas);      // 初始化 GL 上下文
+        initWebGL(document.getElementById("glcanvas"));      // 初始化 GL 上下文
         initShaders(gl);
         initTextures(gl);
         initBuffers(gl);
@@ -243,6 +253,7 @@
         document.getElementById('glcanvas').addEventListener('click', onClick);
         document.getElementById('glcanvas').addEventListener('touchstart', onTouch);
         document.getElementById('glcanvas').addEventListener('touchmove', onTouch);
+        document.getElementById('btn_fullscreen').addEventListener('click', requestFullScreen);
         window.setInterval(showInfo, 1000);
         refreshPage();
     });
