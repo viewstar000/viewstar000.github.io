@@ -201,6 +201,28 @@
         frameCount = 0;
     }
 
+    function onClick (event) {
+        window.console.log('OnClick ' + event.pageX + ',' + event.pageY);
+        cx = event.pageX * cw / vw;
+        cy = ch - event.pageY * ch / vh;
+        hasNew = true;
+        fading = 100;
+        drawScene();
+    }
+
+    function onTouch (event) {
+        event.preventDefault();
+        for (var i=0; i<event.touches.length; i++){
+            var touch = event.touches[i];
+            window.console.log('Touch Start ' + touch.identifier + ' - ' + touch.pageX + ',' + touch.pageY);
+            cx = touch.pageX * cw / vw;
+            cy = ch - touch.pageY * ch / vh;
+            hasNew = true;
+            fading = 100;
+            drawScene();
+        }
+    }
+
     $(window).resize(function(){
         vw = $("#glcanvas").width();
         vh = $("#glcanvas").height();
@@ -218,12 +240,9 @@
         initBuffers(gl);
         initScene(gl);
         $(window).resize();
-        $('#glcanvas').click(function (e) {
-            cx = e.pageX * cw / vw;
-            cy = ch - e.pageY * ch / vh;
-            hasNew = true;
-            fading = 100;
-        });
+        document.getElementById('glcanvas').addEventListener('click', onClick);
+        document.getElementById('glcanvas').addEventListener('touchstart', onTouch);
+        document.getElementById('glcanvas').addEventListener('touchmove', onTouch);
         window.setInterval(showInfo, 1000);
         refreshPage();
     });
