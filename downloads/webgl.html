@@ -179,7 +179,7 @@
         imageTexture.activeWith(shader, 1, "samplerFront");
 
         if(points.length){
-            var cp = points.pop();
+            var cp = points.shift();
             buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
             buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
             gl.uniform1i(shader.uniform('flag'), 1);
