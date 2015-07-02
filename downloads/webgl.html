@@ -7,9 +7,15 @@
     <script type="text/javascript" src="shader.js"></script>
     <script type="text/javascript" src="buffer.js"></script>
     <script type="text/javascript" src="texture.js"></script>
+    <style type="text/css">
+    .full-screen {
+        width: 100%;
+        height: 100%;
+    }
+    </style>
 </head>
 <body style="margin:0px">
-    <canvas id="glcanvas" width="512" height="512" style="width:100%;height:100%">
+    <canvas id="glcanvas" class="full-screen" width="512" height="512">
         Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
     </canvas>
     <div id="info_panel" style="position:fixed;left:0px;top:0px;color:white">
@@ -77,7 +83,8 @@
     var shader              = null;
     var buffers             = {};
     var imageTexture        = null;
-    var frameBufferTexture  = null;
+    var frameBufferTextures = [];
+    var frameBufferIndex    = 0;
 
     var cx = 0;
     var cy = 0;
@@ -87,6 +94,7 @@
     var vh = ch; 
     var fading = 100;
     var hasNew = false;
+    var textureReady = 0;
 
     var frameCount = 0;
 
@@ -113,8 +121,11 @@
 
     function initTextures(gl) {
         imageTexture = new GLTexture(gl);
-        imageTexture.loadImage('texture.png');
-        frameBufferTexture = new GLFrameBufferTexture(gl, null, cw, ch);
+        imageTexture.loadImage('cubetexture.png', null, function () {
+            textureReady ++;
+        });
+        frameBufferTextures.push(new GLFrameBufferTexture(gl, null, cw, ch));
+        frameBufferTextures.push(new GLFrameBufferTexture(gl, null, cw, ch));
     }
 
     function initBuffers(gl) {
@@ -153,12 +164,18 @@
     }
 
     function drawScene() {
+        if (!textureReady){
+            return;
+        }
 
+        frameBufferIndex = (frameBufferIndex + 1) % 2;
+        var frontFrameBuffer = frameBufferTextures[frameBufferIndex % 2];
+        var backFrameBuffer = frameBufferTextures[(frameBufferIndex + 1) % 2];
         // ---------------------------------------------------------------------
-        frameBufferTexture.begin();
+        frontFrameBuffer.begin();
         
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-        frameBufferTexture.activeWith(shader, 0, "samplerBack");
+        backFrameBuffer.activeWith(shader, 0, "samplerBack");
         imageTexture.activeWith(shader, 1, "samplerFront");
 
         if(hasNew){
@@ -177,11 +194,12 @@
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
         }
 
-        frameBufferTexture.end();
+        frontFrameBuffer.end();
         // ---------------------------------------------------------------------
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        frameBufferTexture.activeWith(shader, 0, "samplerBack");
+        frontFrameBuffer.activeWith(shader, 0, "samplerBack");
+        imageTexture.activeWith(shader, 1, "samplerFront");
 
         buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
         buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
@@ -235,6 +253,8 @@
     }
 
     $(window).resize(function(){
+        $("#glcanvas").width($(window).width());
+        $("#glcanvas").height($(window).height());
         vw = $("#glcanvas").width();
         vh = $("#glcanvas").height();
         if(gl){
@@ -254,6 +274,15 @@
         document.getElementById('glcanvas').addEventListener('touchstart', onTouch);
         document.getElementById('glcanvas').addEventListener('touchmove', onTouch);
         document.getElementById('btn_fullscreen').addEventListener('click', requestFullScreen);
+        document.addEventListener("fullscreenchange", function () {
+            window.console.log('onFullscreenchange');
+        }, false);
+        document.addEventListener("mozfullscreenchange", function () {
+            window.console.log('onMozfullscreenchange');
+        }, false);
+        document.addEventListener("webkitfullscreenchange", function () {
+            window.console.log('onWebkitfullscreenchange');
+        }, false);
         window.setInterval(showInfo, 1000);
         refreshPage();
     });
