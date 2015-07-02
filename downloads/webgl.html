@@ -14,12 +14,12 @@
     }
     </style>
 </head>
-<body style="margin:0px">
+<body style="margin:0px;background-color:#000066">
     <canvas id="glcanvas" class="full-screen" width="512" height="512">
         Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
     </canvas>
     <div id="info_panel" style="position:fixed;left:0px;top:0px;color:white">
-        Info
+        ----
     </div>
     <div id="btn_fullscreen" style="position:fixed;right:0px;bottom:0px;display:inline;color:white;cursor:pointer">
         Full Screen
@@ -79,22 +79,22 @@
     </script>
 
     <script type="text/javascript" language="javascript">
+    var CANVAS_WIDTH    = 512;
+    var CANVAS_HEIGHT   = 512;
+    var MAX_FADING      = 100;
+
     var gl                  = null;
     var shader              = null;
     var buffers             = {};
     var imageTexture        = null;
+    var textureReady        = 0;
     var frameBufferTextures = [];
     var frameBufferIndex    = 0;
 
-    var cx = 0;
-    var cy = 0;
-    var cw = $("#glcanvas").attr('width') || 512;
-    var ch = $("#glcanvas").attr('height') || 512;
-    var vw = cw;
-    var vh = ch; 
-    var fading = 100;
-    var hasNew = false;
-    var textureReady = 0;
+    var vw      = CANVAS_WIDTH;
+    var vh      = CANVAS_HEIGHT; 
+    var fading  = 0;    
+    var points  = [];
 
     var frameCount = 0;
 
@@ -124,8 +124,8 @@
         imageTexture.loadImage('cubetexture.png', null, function () {
             textureReady ++;
         });
-        frameBufferTextures.push(new GLFrameBufferTexture(gl, null, cw, ch));
-        frameBufferTextures.push(new GLFrameBufferTexture(gl, null, cw, ch));
+        frameBufferTextures.push(new GLFrameBufferTexture(gl, null, CANVAS_WIDTH, CANVAS_HEIGHT));
+        frameBufferTextures.push(new GLFrameBufferTexture(gl, null, CANVAS_WIDTH, CANVAS_HEIGHT));
     }
 
     function initBuffers(gl) {
@@ -178,15 +178,16 @@
         backFrameBuffer.activeWith(shader, 0, "samplerBack");
         imageTexture.activeWith(shader, 1, "samplerFront");
 
-        if(hasNew){
+        if(points.length){
+            var cp = points.pop();
             buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
             buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
             gl.uniform1i(shader.uniform('flag'), 1);
             gl.uniform4f(shader.uniform('color'), 1.0, 1.0, 1.0, 1.0);
-            gl.uniform2f(shader.uniform('posVec'), cx, cy);
+            gl.uniform2fv(shader.uniform('posVec'), cp);
             gl.uniform1f(shader.uniform('ratio'), vw / vh);
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-            hasNew = false;
+            fading = MAX_FADING;
         }else{
             buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
             buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
@@ -210,25 +211,22 @@
     }
 
     function refreshPage () {
-        if (fading > 0){
-            fading -= 1;
+        if (points.length > 0 || fading > 0){
+            fading --;
             drawScene();
         }
         requestAnimationFrame(refreshPage);
     }
 
-    function showInfo () {
-        $('#info_panel').text('Info cx=' + cx + ' cy=' + cy + ' FPS=' + frameCount);
-        frameCount = 0;
+    function drawPoint (x, y) {
+        points.push([x, y]);
     }
 
     function onClick (event) {
         window.console.log('OnClick ' + event.pageX + ',' + event.pageY);
-        cx = event.pageX * cw / vw;
-        cy = ch - event.pageY * ch / vh;
-        hasNew = true;
-        fading = 100;
-        drawScene();
+        var cx = event.pageX * CANVAS_WIDTH / vw;
+        var cy = CANVAS_HEIGHT - event.pageY * CANVAS_HEIGHT / vh;
+        drawPoint(cx, cy);
     }
 
     function onTouch (event) {
@@ -236,12 +234,15 @@
         for (var i=0; i<event.touches.length; i++){
             var touch = event.touches[i];
             window.console.log('Touch Start ' + touch.identifier + ' - ' + touch.pageX + ',' + touch.pageY);
-            cx = touch.pageX * cw / vw;
-            cy = ch - touch.pageY * ch / vh;
-            hasNew = true;
-            fading = 100;
-            drawScene();
+            var cx = touch.pageX * CANVAS_WIDTH / vw;
+            var cy = CANVAS_HEIGHT - touch.pageY * CANVAS_HEIGHT / vh;
+            drawPoint(cx, cy);
         }
+    }
+
+    function showInfo () {
+        $('#info_panel').text('FPS=' + frameCount);
+        frameCount = 0;
     }
 
     function requestFullScreen () {
@@ -252,24 +253,18 @@
             requestMethod.call(element);
     }
 
-    $(window).resize(function(){
-        $("#glcanvas").width($(window).width());
-        $("#glcanvas").height($(window).height());
-        vw = $("#glcanvas").width();
-        vh = $("#glcanvas").height();
-        if(gl){
-            gl.viewport(0, 0, cw, ch);
-            drawScene();
-        }
-    });
-
-    $(document).ready(function () {
-        initWebGL(document.getElementById("glcanvas"));      // 初始化 GL 上下文
-        initShaders(gl);
-        initTextures(gl);
-        initBuffers(gl);
-        initScene(gl);
-        $(window).resize();
+    function initEvents () {
+        $(window).resize(function(){
+            $("#glcanvas").width($(window).width() || '100%');
+            $("#glcanvas").height($(window).height() || '100%');
+            vw = $("#glcanvas").width();
+            vh = $("#glcanvas").height();
+            window.console.log('onSize w=' + vw + ' h=' + vh);
+            if(gl){
+                gl.viewport(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                drawScene();
+            }
+        });
         document.getElementById('glcanvas').addEventListener('click', onClick);
         document.getElementById('glcanvas').addEventListener('touchstart', onTouch);
         document.getElementById('glcanvas').addEventListener('touchmove', onTouch);
@@ -279,11 +274,25 @@
         }, false);
         document.addEventListener("mozfullscreenchange", function () {
             window.console.log('onMozfullscreenchange');
+            $(window).resize();
         }, false);
         document.addEventListener("webkitfullscreenchange", function () {
             window.console.log('onWebkitfullscreenchange');
         }, false);
         window.setInterval(showInfo, 1000);
+    }
+    
+
+    $(document).ready(function () {
+        $('#glcanvas').attr('width', CANVAS_WIDTH);
+        $('#glcanvas').attr('height', CANVAS_HEIGHT);
+        initWebGL(document.getElementById("glcanvas"));      // 初始化 GL 上下文
+        initShaders(gl);
+        initTextures(gl);
+        initBuffers(gl);
+        initScene(gl);
+        initEvents();
+        $(window).resize();
         refreshPage();
     });
     </script>
