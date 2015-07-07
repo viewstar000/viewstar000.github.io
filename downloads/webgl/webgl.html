@@ -142,7 +142,7 @@
 
     function initTextures(gl) {
         imageTexture = new GLTexture(gl);
-        imageTexture.loadImage('cubetexture.png', null, function () {
+        imageTexture.loadImage('texture2.png', null, function () {
             textureReady ++;
         });
         frameBufferTextures.push(new GLFrameBufferTexture(gl, null, CANVAS_WIDTH, CANVAS_HEIGHT));
@@ -210,14 +210,13 @@
         gl.uniform1i(shader.uniform('flag'), 2);
         gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
-        var rect = new Rect(0, 0, vw, vh);
-        var rectBuffer = rect.toFloatBuffer(gl);
-        gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureClipMatrix.flatten()));
-        rectBuffer.bindAttrib(shader.attrib('vertexPosition'), 2);
-        //rectBuffer.bindAttrib(shader.attrib('textureCoord'), 2);
-        gl.uniform1i(shader.uniform('flag'), 4);
-        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-        rectBuffer.delete();
+        // var rect = new Rect(0, 0, vw, vh);
+        // var rectBuffer = rect.toFloatBuffer(gl);
+        // rectBuffer.bindAttrib(shader.attrib('vertexPosition'), 2);
+        // gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureClipMatrix.flatten()));
+        // gl.uniform1i(shader.uniform('flag'), 4);
+        // gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        // rectBuffer.delete();
         // ---------------------------------------------------------------------
         frameCount ++;
     }
@@ -237,9 +236,6 @@
 
     function onClick (event) {
         window.console.log('OnClick ' + event.pageX + ',' + event.pageY);
-        // var cx = event.pageX * CANVAS_WIDTH / vw;
-        // var cy = CANVAS_HEIGHT - event.pageY * CANVAS_HEIGHT / vh;
-        // drawPoint(cx, cy);
         drawPoint(event.pageX, event.pageY);
     }
 
@@ -248,9 +244,6 @@
         for (var i=0; i<event.touches.length; i++){
             var touch = event.touches[i];
             window.console.log('Touch Start ' + touch.identifier + ' - ' + touch.pageX + ',' + touch.pageY);
-            // var cx = touch.pageX * CANVAS_WIDTH / vw;
-            // var cy = CANVAS_HEIGHT - touch.pageY * CANVAS_HEIGHT / vh;
-            // drawPoint(cx, cy);
             drawPoint(touch.pageX, touch.pageY);
         }
     }
