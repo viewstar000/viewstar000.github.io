@@ -1,8 +1,10 @@
-function GLBuffer(glContext, bufferType, arrayData){
+function GLBuffer(glContext, bufferType, arrayData, bindParam){
     this.gl = glContext;
     this.buffer = glContext.createBuffer();
     this.bufferType = bufferType;
-    this.bindData(arrayData, gl.STATIC_DRAW);
+    if (arrayData){
+        this.bindData(arrayData, bindParam || this.gl.STATIC_DRAW);
+    }
 }
 
 GLBuffer.prototype.gl           = null;
@@ -28,9 +30,13 @@ GLBuffer.prototype.bindAttrib = function(attrib, itemSize, dataType) {
     return this;
 };
 
+GLBuffer.prototype.delete = function() {
+    this.gl.deleteBuffer(this.buffer);
+};
 
-function GLFloatBuffer(glContext, bufferType, data){
-    GLBuffer.call(this, glContext, bufferType, new Float32Array(data));
+
+function GLFloatBuffer(glContext, bufferType, data, bindParam){
+    GLBuffer.call(this, glContext, bufferType, data && new Float32Array(data), bindParam);
 }
 
 GLFloatBuffer.prototype = Object.create(GLBuffer.prototype);

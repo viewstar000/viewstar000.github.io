@@ -4,9 +4,12 @@
     <meta name="viewport" content="width=device-width height=device-height initial-scale=1" />
     <title>DEMO</title>
     <script type="text/javascript" src="jquery-2.1.0.min.js"></script>
+    <script type="text/javascript" src="sylvester.js"></script>
+    <script type="text/javascript" src="glutils.js"></script>
     <script type="text/javascript" src="shader.js"></script>
     <script type="text/javascript" src="buffer.js"></script>
     <script type="text/javascript" src="texture.js"></script>
+    <script type="text/javascript" src="shape.js"></script>
     <style type="text/css">
     .full-screen {
         width: 100%;
@@ -29,17 +32,14 @@
 
     <script id="shader-vs" type="x-shader/x-vertex">
     attribute   vec2    vertexPosition;
-    attribute   vec2    textureCoord;
-    varying     mediump vec2    vTextureCoord;
-    varying     mediump vec2    vColorCenter;
+    varying     mediump vec4    vTextureCoord;
 
-    //uniform mat4 uMVMatrix;
-    //uniform mat4 uPMatrix;
+    uniform mat4 vertexMatrix;
+    uniform mat4 textureMatrix;
 
     void main(void) {
-        //gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
-        gl_Position     = vec4(vertexPosition, 0.0, 1.0);
-        vTextureCoord   = textureCoord;
+        gl_Position     = vertexMatrix * vec4(vertexPosition, 0.0, 1.0);
+        vTextureCoord   = textureMatrix * gl_Position;
     }
     </script>
 
@@ -48,28 +48,37 @@
     uniform     mediump     int     flag;
     uniform     mediump     vec4    color;
     uniform     mediump     vec2    posVec;
-    uniform     mediump     float   ratio;
+    uniform     mediump     float   pointSize;
+    uniform     mediump     mat4    frag2ScreenMatrix;
     uniform     sampler2D   samplerBack;
     uniform     sampler2D   samplerFront;
-    varying     mediump vec2    vTextureCoord;
+
+    varying     mediump     vec4    vTextureCoord;
 
     void main(void) {
         if (flag == 0)
         {
-            gl_FragColor = abs(texture2D(samplerBack, vTextureCoord)  - vec4(0.01, 0.01, 0.01, 0));
+            gl_FragColor = abs(texture2D(samplerBack, vec2(vTextureCoord))  - vec4(0.01, 0.01, 0.01, 0));
         }
         else if (flag == 1)
         {
-            mediump float d = sqrt(((posVec[0]-gl_FragCoord[0])*ratio) * ((posVec[0]-gl_FragCoord[0])*ratio) + (posVec[1]-gl_FragCoord[1]) * (posVec[1]-gl_FragCoord[1]));
-            if(d < 80.0){
-                gl_FragColor = texture2D(samplerFront, vTextureCoord);
+            mediump vec4 fragScreenCoord = frag2ScreenMatrix * gl_FragCoord;
+            mediump float d = distance(posVec, vec2(fragScreenCoord));
+            if(d < pointSize/2.0){
+                gl_FragColor = texture2D(samplerFront, vec2(vTextureCoord));
             }else{
-                gl_FragColor = abs(texture2D(samplerBack, vTextureCoord)  - vec4(0.01, 0.01, 0.01, 0));
+                gl_FragColor = vec4(0,0,0,0);
             }
         }
         else if (flag == 2)
         {
-            gl_FragColor = texture2D(samplerBack, vTextureCoord);
+            gl_FragColor = texture2D(samplerBack, vec2(vTextureCoord));
+        }
+        else if (flag == 3){
+            gl_FragColor = color;
+        }
+        else if (flag == 4){
+            gl_FragColor = texture2D(samplerFront, vec2(vTextureCoord)) - vec4(0, 0, 0, 0.8);
         }
         else
         {
@@ -82,6 +91,7 @@
     var CANVAS_WIDTH    = 512;
     var CANVAS_HEIGHT   = 512;
     var MAX_FADING      = 100;
+    var POINT_SIZE      = 128;
 
     var gl                  = null;
     var shader              = null;
@@ -90,20 +100,31 @@
     var textureReady        = 0;
     var frameBufferTextures = [];
     var frameBufferIndex    = 0;
+    var vertexMatrix            = Matrix.I(4);
+    var textureClipMatrix       = Matrix.I(4);
+    var textureStretchMatrix    = Matrix.Translation([0.5, 0.5, 0]).multiply(Matrix.Scale([0.5, 0.5, 1, 1]));
+    var frag2ScreenMatrix       = Matrix.I(4);
 
     var vw      = CANVAS_WIDTH;
     var vh      = CANVAS_HEIGHT; 
     var fading  = 0;    
     var points  = [];
+    var shapes  = [];
+    var rectScreen  = new Rect(0, 0, vw, vh);
 
     var frameCount = 0;
 
     function initWebGL(canvas) {
         // 创建全局变量
         gl = null;
+        var attr = {
+            alpha : true,
+            //antialias : true,
+            premultipliedAlpha : true
+        };
         try {
             // 尝试创建标准上下文，如果失败，回退到试验性上下文
-            gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+            gl = canvas.getContext("webgl", attr) || canvas.getContext("experimental-webgl", attr);
         }
         catch(e) {}
         // 如果没有GL上下文，马上放弃
@@ -128,37 +149,13 @@
         frameBufferTextures.push(new GLFrameBufferTexture(gl, null, CANVAS_WIDTH, CANVAS_HEIGHT));
     }
 
-    function initBuffers(gl) {
-        buffers = {};
-        buffers.rectA = new GLFloatBuffer(gl, gl.ARRAY_BUFFER, [
-            -1,   1,
-             1,   1,
-             1,   -1,
-            -1,   -1,
-        ]);
-
-        buffers.rectB = new GLFloatBuffer(gl, gl.ARRAY_BUFFER, [
-             0,   0,
-             1,   0,
-             1,  -1,
-             0,  -1,
-        ]);
-
-        buffers.texCoord = new GLFloatBuffer(gl, gl.ARRAY_BUFFER, [
-             0,   1,
-             1,   1,
-             1,   0,
-             0,   0,
-        ]);
-
-        return buffers;
-    }
-
     function initScene(gl) {
         if (gl) {  // 只有在 WebGL 可用的时候才继续
             gl.clearColor(0.0, 0.0, 0.0, 1.0);                      // 设置擦除颜色为黑色，不透明
             gl.enable(gl.DEPTH_TEST);                               // 开启“深度测试”, Z-缓存
+            gl.enable(gl.BLEND);
             gl.depthFunc(gl.LEQUAL);                                // 这里设置深度测试，满足（深度小或相等的时候才渲染）
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
             gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);      // 清除深度缓存的颜色
         }
     }
@@ -174,25 +171,30 @@
         // ---------------------------------------------------------------------
         frontFrameBuffer.begin();
         
-        //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
         backFrameBuffer.activeWith(shader, 0, "samplerBack");
         imageTexture.activeWith(shader, 1, "samplerFront");
+        gl.uniformMatrix4fv(shader.uniform("vertexMatrix"), false, new Float32Array(vertexMatrix.flatten()));
 
-        if(points.length){
-            var cp = points.shift();
-            buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
-            buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
+        buffers.rectBack.bindAttrib(shader.attrib('vertexPosition'), 2);
+        gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureStretchMatrix.flatten()));
+        gl.uniform1i(shader.uniform('flag'), 0);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+        while(points.length){
+            var cp          = points.shift();
+            var shape       = shapes.shift();
+            var shapeBuffer = shape.toFloatBuffer(gl);
+            shapeBuffer.bindAttrib(shader.attrib('vertexPosition'), 2);
+            gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureClipMatrix.flatten()));
+            gl.uniformMatrix4fv(shader.uniform("frag2ScreenMatrix"), false, new Float32Array(frag2ScreenMatrix.flatten()));
             gl.uniform1i(shader.uniform('flag'), 1);
             gl.uniform4f(shader.uniform('color'), 1.0, 1.0, 1.0, 1.0);
             gl.uniform2fv(shader.uniform('posVec'), cp);
-            gl.uniform1f(shader.uniform('ratio'), vw / vh);
+            gl.uniform1f(shader.uniform('pointSize'), POINT_SIZE);
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
             fading = MAX_FADING;
-        }else{
-            buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
-            buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
-            gl.uniform1i(shader.uniform('flag'), 0);
-            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+            shapeBuffer.delete();
         }
 
         frontFrameBuffer.end();
@@ -201,11 +203,21 @@
 
         frontFrameBuffer.activeWith(shader, 0, "samplerBack");
         imageTexture.activeWith(shader, 1, "samplerFront");
+        gl.uniformMatrix4fv(shader.uniform("vertexMatrix"), false, new Float32Array(vertexMatrix.flatten()));
+        gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureStretchMatrix.flatten()));
 
-        buffers.rectA.bindAttrib(shader.attrib('vertexPosition'), 2);
-        buffers.texCoord.bindAttrib(shader.attrib('textureCoord'), 2);
+        buffers.rectBack.bindAttrib(shader.attrib('vertexPosition'), 2);
         gl.uniform1i(shader.uniform('flag'), 2);
         gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+        var rect = new Rect(0, 0, vw, vh);
+        var rectBuffer = rect.toFloatBuffer(gl);
+        gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureClipMatrix.flatten()));
+        rectBuffer.bindAttrib(shader.attrib('vertexPosition'), 2);
+        //rectBuffer.bindAttrib(shader.attrib('textureCoord'), 2);
+        gl.uniform1i(shader.uniform('flag'), 4);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        rectBuffer.delete();
         // ---------------------------------------------------------------------
         frameCount ++;
     }
@@ -220,13 +232,15 @@
 
     function drawPoint (x, y) {
         points.push([x, y]);
+        shapes.push(new Rect(x - POINT_SIZE/2, y - POINT_SIZE/2, x + POINT_SIZE/2, y + POINT_SIZE/2));
     }
 
     function onClick (event) {
         window.console.log('OnClick ' + event.pageX + ',' + event.pageY);
-        var cx = event.pageX * CANVAS_WIDTH / vw;
-        var cy = CANVAS_HEIGHT - event.pageY * CANVAS_HEIGHT / vh;
-        drawPoint(cx, cy);
+        // var cx = event.pageX * CANVAS_WIDTH / vw;
+        // var cy = CANVAS_HEIGHT - event.pageY * CANVAS_HEIGHT / vh;
+        // drawPoint(cx, cy);
+        drawPoint(event.pageX, event.pageY);
     }
 
     function onTouch (event) {
@@ -234,9 +248,10 @@
         for (var i=0; i<event.touches.length; i++){
             var touch = event.touches[i];
             window.console.log('Touch Start ' + touch.identifier + ' - ' + touch.pageX + ',' + touch.pageY);
-            var cx = touch.pageX * CANVAS_WIDTH / vw;
-            var cy = CANVAS_HEIGHT - touch.pageY * CANVAS_HEIGHT / vh;
-            drawPoint(cx, cy);
+            // var cx = touch.pageX * CANVAS_WIDTH / vw;
+            // var cy = CANVAS_HEIGHT - touch.pageY * CANVAS_HEIGHT / vh;
+            // drawPoint(cx, cy);
+            drawPoint(touch.pageX, touch.pageY);
         }
     }
 
@@ -260,6 +275,21 @@
             vw = $("#glcanvas").width();
             vh = $("#glcanvas").height();
             window.console.log('onSize w=' + vw + ' h=' + vh);
+            rectScreen.left     = 0;
+            rectScreen.top      = 0;
+            rectScreen.right    = vw;
+            rectScreen.bottom   = vh;
+            if(buffers.rectBack){
+                buffers.rectBack.delete();
+            }
+            buffers.rectBack = rectScreen.toFloatBuffer(gl, gl.STATIC_DRAW);
+            vertexMatrix = Matrix.Translation([-1, 1, 0]).multiply(Matrix.Scale([2.0/vw, -2.0/vh, 1, 1]));
+            if (vw > vh){
+                textureClipMatrix = Matrix.Translation([0.5, 0.5, 0]).multiply(Matrix.Scale([0.5, vh/vw/2, 1, 1]));
+            }else{
+                textureClipMatrix = Matrix.Translation([0.5, 0.5, 0]).multiply(Matrix.Scale([vw/vh/2, 0.5, 1, 1]));
+            }
+            frag2ScreenMatrix   = Matrix.Translation([0, vh, 0]).multiply(Matrix.Scale([vw/CANVAS_WIDTH, -vh/CANVAS_HEIGHT, 1, 1]));
             if(gl){
                 gl.viewport(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
                 drawScene();
@@ -289,7 +319,6 @@
         initWebGL(document.getElementById("glcanvas"));      // 初始化 GL 上下文
         initShaders(gl);
         initTextures(gl);
-        initBuffers(gl);
         initScene(gl);
         initEvents();
         $(window).resize();
