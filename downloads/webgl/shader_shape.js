@@ -11,7 +11,7 @@ function ShapeAttribute (name, shaderAttr) {
 ShapeAttribute.prototype.setData = function(dataArray, repeat) {
     if(repeat){
         this.dataArray = [];
-        for (var i = repeat; i >= 0; i--) {
+        for (var i = repeat; i > 0; i--) {
             this.dataArray = this.dataArray.concat(dataArray);
         }
     }else{
