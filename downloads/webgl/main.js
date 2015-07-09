@@ -1,98 +1,4 @@
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width height=device-height initial-scale=1" />
-    <title>DEMO</title>
-    <script type="text/javascript" src="jquery-2.1.0.min.js"></script>
-    <script type="text/javascript" src="sylvester.js"></script>
-    <script type="text/javascript" src="glutils.js"></script>
-    <script type="text/javascript" src="shader.js"></script>
-    <script type="text/javascript" src="shader_shape.js"></script>
-    <script type="text/javascript" src="buffer.js"></script>
-    <script type="text/javascript" src="texture.js"></script>
-    <script type="text/javascript" src="shape.js"></script>
-    <style type="text/css">
-    .full-screen {
-        width: 100%;
-        height: 100%;
-    }
-    </style>
-</head>
-<body style="margin:0px;background-color:#000066">
-    <canvas id="glcanvas" class="full-screen" width="512" height="512">
-        Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
-    </canvas>
-    <div id="info_panel" style="position:fixed;left:0px;top:0px;color:white">
-        ----
-    </div>
-    <div id="btn_fullscreen" style="position:fixed;right:0px;bottom:0px;display:inline;color:white;cursor:pointer">
-        Full Screen
-    </div>
-
-    
-
-    <script id="shader-vs" type="x-shader/x-vertex">
-    attribute   vec2    vertexPosition;
-    attribute   vec2    centerPosition;
-
-    uniform     mat4    vertexMatrix;
-    uniform     mat4    textureMatrix;
-
-    varying     mediump vec4    vTextureCoord;
-    varying     mediump vec2    vCenterPostion;
-
-    void main(void) {
-        gl_Position     = vertexMatrix * vec4(vertexPosition, 0.0, 1.0);
-        vTextureCoord   = textureMatrix * gl_Position;
-        vCenterPostion  = centerPosition;
-    }
-    </script>
-
-    <script id="shader-fs" type="x-shader/x-fragment">
-
-    uniform     mediump     int     flag;
-    uniform     mediump     vec4    color;
-    uniform     mediump     float   pointSize;
-    uniform     mediump     mat4    frag2ScreenMatrix;
-    uniform     sampler2D   samplerBack;
-    uniform     sampler2D   samplerFront;
-
-    varying     mediump     vec4    vTextureCoord;
-    varying     mediump     vec2    vCenterPostion;
-
-    void main(void) {
-        if (flag == 0)
-        {
-            gl_FragColor = abs(texture2D(samplerBack, vec2(vTextureCoord))  - vec4(0.01, 0.01, 0.01, 0));
-        }
-        else if (flag == 1)
-        {
-            mediump vec4 fragScreenCoord = frag2ScreenMatrix * gl_FragCoord;
-            mediump float d = distance(vCenterPostion, vec2(fragScreenCoord));
-            if(d < pointSize/2.0){
-                gl_FragColor = texture2D(samplerFront, vec2(vTextureCoord));
-            }else{
-                gl_FragColor = vec4(0,0,0,0);
-            }
-        }
-        else if (flag == 2)
-        {
-            gl_FragColor = texture2D(samplerBack, vec2(vTextureCoord));
-        }
-        else if (flag == 3){
-            gl_FragColor = color;
-        }
-        else if (flag == 4){
-            gl_FragColor = texture2D(samplerFront, vec2(vTextureCoord)) - vec4(0, 0, 0, 0.8);
-        }
-        else
-        {
-            gl_FragColor = vec4(0,0,0,1);
-        }
-    }
-    </script>
-
-    <script type="text/javascript" language="javascript">
+require(['jquery-2.1.0.min.js', 'sylvester.js', 'glutils.js'], function () {
     var CANVAS_WIDTH    = 512;
     var CANVAS_HEIGHT   = 512;
     var MAX_FADING      = 100;
@@ -100,6 +6,7 @@
 
     var gl                  = null;
     var shader              = null;
+    var buffers             = {};
     var imageTexture        = null;
     var textureReady        = 0;
     var frameBufferTextures = [];
@@ -114,7 +21,7 @@
     var fading  = 0;    
     var points  = [];
     var shapes  = [];
-    var rectScreen  = null;
+    var rectScreen  = new Rect(0, 0, vw, vh);
 
     var frameCount = 0;
 
@@ -141,6 +48,8 @@
     function initShaders (gl) {
         shader = new GLShader(gl);
         shader.setShaderScript('shader-vs', 'shader-fs');
+        window.console.log('attr: ' + gl.getProgramParameter(shader.shaderProgram, gl.ACTIVE_ATTRIBUTES));
+        window.console.log('attr: ' + JSON.stringify(gl.getActiveAttrib(shader.shaderProgram, 0)));
         return shader;
     }
 
@@ -176,39 +85,54 @@
         frontFrameBuffer.begin();
         
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+        backFrameBuffer.activeWith(shader, 0, "samplerBack");
+        imageTexture.activeWith(shader, 1, "samplerFront");
+        gl.uniformMatrix4fv(shader.uniform("vertexMatrix"), false, new Float32Array(vertexMatrix.flatten()));
 
-        backFrameBuffer.activeWith(shader.uniform.samplerBack, 0);
-        imageTexture.activeWith(shader.uniform.samplerFront, 1);
+        buffers.rectBack.bindAttrib(shader.attrib('vertexPosition'), 2);
+        gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureStretchMatrix.flatten()));
+        gl.uniform1i(shader.uniform('flag'), 0);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
-        rectScreen.uniform.vertexMatrix.setValue(vertexMatrix.flatten());
-        rectScreen.uniform.textureMatrix.setValue(textureStretchMatrix.flatten());
-        rectScreen.uniform.flag.setValue(0);
-        rectScreen.draw();
-
-        if (shapes.length) {
-            pointGroup = new ShapeGroup(shader);
-            pointGroup.uniform.textureMatrix.setValue(textureClipMatrix.flatten());
-            pointGroup.uniform.frag2ScreenMatrix.setValue(frag2ScreenMatrix.flatten());
-            pointGroup.uniform.flag.setValue(1);
-            pointGroup.uniform.color.setValue([1.0, 1.0, 1.0, 1.0]);
-            pointGroup.uniform.pointSize.setValue(POINT_SIZE);
-            pointGroup.takeFrom(shapes);
-            pointGroup.draw();
-            fading = MAX_FADING;
+        if (points.length) {
+            gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureClipMatrix.flatten()));
+            gl.uniformMatrix4fv(shader.uniform("frag2ScreenMatrix"), false, new Float32Array(frag2ScreenMatrix.flatten()));
+            gl.uniform1i(shader.uniform('flag'), 1);
+            gl.uniform4f(shader.uniform('color'), 1.0, 1.0, 1.0, 1.0);
+            gl.uniform1f(shader.uniform('pointSize'), POINT_SIZE);
+            while(points.length){
+                var cp          = points.shift();
+                var shape       = shapes.shift();
+                var shapeBuffer = shape.toFloatBuffer(gl);
+                shapeBuffer.bindAttrib(shader.attrib('vertexPosition'), 2);
+                gl.uniform2fv(shader.uniform('posVec'), cp);
+                gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+                fading = MAX_FADING;
+                shapeBuffer.delete();
+            }
         }
 
         frontFrameBuffer.end();
         // ---------------------------------------------------------------------
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        frontFrameBuffer.activeWith(shader.uniform.samplerBack, 0);
-        imageTexture.activeWith(shader.uniform.samplerFront, 1);
+        frontFrameBuffer.activeWith(shader, 0, "samplerBack");
+        imageTexture.activeWith(shader, 1, "samplerFront");
+        gl.uniformMatrix4fv(shader.uniform("vertexMatrix"), false, new Float32Array(vertexMatrix.flatten()));
+        gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureStretchMatrix.flatten()));
 
-        rectScreen.uniform.vertexMatrix.setValue(vertexMatrix.flatten());
-        rectScreen.uniform.textureMatrix.setValue(textureStretchMatrix.flatten());
-        rectScreen.uniform.flag.setValue(2);
-        rectScreen.draw();
+        buffers.rectBack.bindAttrib(shader.attrib('vertexPosition'), 2);
+        gl.uniform1i(shader.uniform('flag'), 2);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
+        // var rect = new Rect(0, 0, vw, vh);
+        // var rectBuffer = rect.toFloatBuffer(gl);
+        // rectBuffer.bindAttrib(shader.attrib('vertexPosition'), 2);
+        // gl.uniformMatrix4fv(shader.uniform("textureMatrix"), false, new Float32Array(textureClipMatrix.flatten()));
+        // gl.uniform1i(shader.uniform('flag'), 4);
+        // gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        // rectBuffer.delete();
+        // ---------------------------------------------------------------------
         frameCount ++;
     }
 
@@ -222,7 +146,7 @@
 
     function drawPoint (x, y) {
         points.push([x, y]);
-        shapes.push(new Rect(shader, x - POINT_SIZE/2, y - POINT_SIZE/2, x + POINT_SIZE/2, y + POINT_SIZE/2));
+        shapes.push(new Rect(x - POINT_SIZE/2, y - POINT_SIZE/2, x + POINT_SIZE/2, y + POINT_SIZE/2));
     }
 
     function onClick (event) {
@@ -259,10 +183,14 @@
             vw = $("#glcanvas").width();
             vh = $("#glcanvas").height();
             window.console.log('onSize w=' + vw + ' h=' + vh);
-            if(rectScreen){
-                rectScreen.delete();
+            rectScreen.left     = 0;
+            rectScreen.top      = 0;
+            rectScreen.right    = vw;
+            rectScreen.bottom   = vh;
+            if(buffers.rectBack){
+                buffers.rectBack.delete();
             }
-            rectScreen = new Rect(shader, 0, 0, vw, vh);
+            buffers.rectBack = rectScreen.toFloatBuffer(gl, gl.STATIC_DRAW);
             vertexMatrix = Matrix.Translation([-1, 1, 0]).multiply(Matrix.Scale([2.0/vw, -2.0/vh, 1, 1]));
             if (vw > vh){
                 textureClipMatrix = Matrix.Translation([0.5, 0.5, 0]).multiply(Matrix.Scale([0.5, vh/vw/2, 1, 1]));
@@ -304,6 +232,4 @@
         $(window).resize();
         refreshPage();
     });
-    </script>
-</body>
-</html>
+});

@@ -16,10 +16,10 @@ GLTexture.prototype.unbind = function() {
     this.gl.bindTexture(this.textureType, null);
 };
 
-GLTexture.prototype.activeWith = function(shader, index, uniformName) {
+GLTexture.prototype.activeWith = function(shaderUniform, index) {
     this.gl.activeTexture(this.gl.TEXTURE0 + index);
     this.bind();
-    this.gl.uniform1i(shader.uniform(uniformName), index);
+    shaderUniform.bindValue(index);
 };
 
 GLTexture.prototype.loadImage = function(src, noRepating, callback) {

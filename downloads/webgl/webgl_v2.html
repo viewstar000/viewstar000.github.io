@@ -1,0 +1,84 @@
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width height=device-height initial-scale=1" />
+    <title>DEMO</title>
+    <script data-main="main" src="scripts/require.js"></script>
+    <style type="text/css">
+    .full-screen {
+        width: 100%;
+        height: 100%;
+    }
+    </style>
+</head>
+<body style="margin:0px;background-color:#000066">
+    <canvas id="glcanvas" class="full-screen" width="512" height="512">
+        Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
+    </canvas>
+    <div id="info_panel" style="position:fixed;left:0px;top:0px;color:white">
+        ----
+    </div>
+    <div id="btn_fullscreen" style="position:fixed;right:0px;bottom:0px;display:inline;color:white;cursor:pointer">
+        Full Screen
+    </div>
+
+    
+
+    <script id="shader-vs" type="x-shader/x-vertex">
+    attribute   vec2    vertexPosition;
+    varying     mediump vec4    vTextureCoord;
+
+    uniform mat4 vertexMatrix;
+    uniform mat4 textureMatrix;
+
+    void main(void) {
+        gl_Position     = vertexMatrix * vec4(vertexPosition, 0.0, 1.0);
+        vTextureCoord   = textureMatrix * gl_Position;
+    }
+    </script>
+
+    <script id="shader-fs" type="x-shader/x-fragment">
+
+    uniform     mediump     int     flag;
+    uniform     mediump     vec4    color;
+    uniform     mediump     vec2    posVec;
+    uniform     mediump     float   pointSize;
+    uniform     mediump     mat4    frag2ScreenMatrix;
+    uniform     sampler2D   samplerBack;
+    uniform     sampler2D   samplerFront;
+
+    varying     mediump     vec4    vTextureCoord;
+
+    void main(void) {
+        if (flag == 0)
+        {
+            gl_FragColor = abs(texture2D(samplerBack, vec2(vTextureCoord))  - vec4(0.01, 0.01, 0.01, 0));
+        }
+        else if (flag == 1)
+        {
+            mediump vec4 fragScreenCoord = frag2ScreenMatrix * gl_FragCoord;
+            mediump float d = distance(posVec, vec2(fragScreenCoord));
+            if(d < pointSize/2.0){
+                gl_FragColor = texture2D(samplerFront, vec2(vTextureCoord));
+            }else{
+                gl_FragColor = vec4(0,0,0,0);
+            }
+        }
+        else if (flag == 2)
+        {
+            gl_FragColor = texture2D(samplerBack, vec2(vTextureCoord));
+        }
+        else if (flag == 3){
+            gl_FragColor = color;
+        }
+        else if (flag == 4){
+            gl_FragColor = texture2D(samplerFront, vec2(vTextureCoord)) - vec4(0, 0, 0, 0.8);
+        }
+        else
+        {
+            gl_FragColor = vec4(0,0,0,1);
+        }
+    }
+    </script>
+</body>
+</html>
