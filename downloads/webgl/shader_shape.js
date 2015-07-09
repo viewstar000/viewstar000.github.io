@@ -150,6 +150,7 @@ ShapeGroup.prototype.draw = function(usage) {
             for (var j = 0; j < shapeIndexArray.length; j++){
                 this.indexArray.push(shapeIndexArray[j] + offset);
             }
+            offset += this.shapes[i].getVertexCount();
         }
         this.indexBuffer = new GLBuffer(gl, gl.ELEMENT_ARRAY_BUFFER, Uint16Array, this.indexArray, usage || gl.STREAM_DRAW);
         this.hasChanged = false;

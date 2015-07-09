@@ -112,7 +112,6 @@
     var vw      = CANVAS_WIDTH;
     var vh      = CANVAS_HEIGHT; 
     var fading  = 0;    
-    var points  = [];
     var shapes  = [];
     var rectScreen  = null;
 
@@ -213,7 +212,7 @@
     }
 
     function refreshPage () {
-        if (points.length > 0 || fading > 0){
+        if (shapes.length > 0 || fading > 0){
             fading --;
             drawScene();
         }
@@ -221,13 +220,13 @@
     }
 
     function drawPoint (x, y) {
-        points.push([x, y]);
         shapes.push(new Rect(shader, x - POINT_SIZE/2, y - POINT_SIZE/2, x + POINT_SIZE/2, y + POINT_SIZE/2));
     }
 
     function onClick (event) {
         window.console.log('OnClick ' + event.pageX + ',' + event.pageY);
         drawPoint(event.pageX, event.pageY);
+        // drawPoint(event.pageX + 10, event.pageY + 10);
     }
 
     function onTouch (event) {
@@ -236,6 +235,7 @@
             var touch = event.touches[i];
             window.console.log('Touch Start ' + touch.identifier + ' - ' + touch.pageX + ',' + touch.pageY);
             drawPoint(touch.pageX, touch.pageY);
+            // drawPoint(touch.pageX + 10, touch.pageY + 10);
         }
     }
 
