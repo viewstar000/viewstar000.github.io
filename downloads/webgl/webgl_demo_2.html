@@ -25,8 +25,11 @@
     <div id="info_panel" style="position:fixed;left:0px;top:0px;color:white">
         ----
     </div>
-    <div id="btn_fullscreen" style="position:fixed;right:0px;bottom:0px;display:inline;color:white;cursor:pointer">
-        Full Screen
+    <div style="position:fixed;right:0px;bottom:0px;display:inline;color:white;cursor:pointer">
+        <div id="btn_fullscreen" style="float:right;width:100px">Full Screen</div>
+        <div id="btn_full_blur" style="float:right;width:100px">Full Blur</div>
+        <div id="btn_sprite_blur" style="float:right;width:100px">Sprite Blur</div>
+        <div id="btn_paused" style="float:right;width:100px">Paused</div>
     </div>
 
     
@@ -51,45 +54,33 @@
     <script id="shader-fs" type="x-shader/x-fragment">
 
     uniform     mediump     int     flag;
+    uniform     mediump     float   alpha;
     uniform     mediump     vec4    color;
-    uniform     mediump     float   pointSize;
     uniform     mediump     mat4    frag2ScreenMatrix;
-    uniform     sampler2D   samplerBack;
     uniform     sampler2D   samplerFront;
+    uniform     sampler2D   samplerBack;
 
     varying     mediump     vec4    vTextureCoord;
     varying     mediump     vec2    vCenterPostion;
 
     void main(void) {
-        if (flag == 0) // 背景淡出
+        if (flag == 0) // 绘制色块
         {
-            gl_FragColor = abs(texture2D(samplerBack, vec2(vTextureCoord))  - vec4(0.01, 0.01, 0.01, 0));
+            mediump vec4 drawColor = color;
+            drawColor[3] = drawColor[3] * alpha;
+            gl_FragColor = drawColor;
         }
-        else if (flag == 1) // 绘制高亮区域
+        else if (flag == 1) // 绘制前景纹理
         {
-            // 绘图坐标转为屏幕座标
-            mediump vec4 fragScreenCoord = frag2ScreenMatrix * gl_FragCoord;   
-            // 计算当前绘图坐标距点击坐标的距离 
-            mediump float d = distance(vCenterPostion, vec2(fragScreenCoord));
-            if(d < pointSize/2.0){
-                // 当前绘图坐标位位于高亮区域内，绘制前景图案
-                gl_FragColor = texture2D(samplerFront, vec2(vTextureCoord));
-            }else{
-                // 当前绘图坐标不在高亮区域内，绘制透明色
-                gl_FragColor = vec4(0,0,0,0);
-            }
+            mediump vec4 drawColor = texture2D(samplerFront, vec2(vTextureCoord));
+            drawColor[3] = drawColor[3] * alpha;
+            gl_FragColor = drawColor;
         }
-        else if (flag == 2) // 直接复制
+        else if (flag == 2) // 绘制背景纹理
         {
-            gl_FragColor = texture2D(samplerBack, vec2(vTextureCoord));
-        }
-        else if (flag == 3) // For Test
-        { 
-            gl_FragColor = color;
-        }
-        else if (flag == 4) // For Test
-        {
-            gl_FragColor = texture2D(samplerFront, vec2(vTextureCoord)) - vec4(0, 0, 0, 0.8);
+            mediump vec4 drawColor = texture2D(samplerBack, vec2(vTextureCoord));
+            drawColor[3] = drawColor[3] * alpha;;
+            gl_FragColor = drawColor;
         }
         else // init
         {
@@ -120,6 +111,12 @@
     var fading  = 0;    
     var shapes  = [];
     var rectScreen  = null;
+    var rectSprite  = null;
+    var tmStarted   = 0;
+    var tmPassed    = 0;
+    var fullBlur    = false;
+    var spriteBlur  = false;
+    var paused      = false;
 
     var frameCount = 0;
 
@@ -151,7 +148,7 @@
 
     function initTextures(gl) {
         imageTexture = new GLTexture(gl);
-        imageTexture.loadImage('texture2.png', null, function () {
+        imageTexture.loadImage('texture.png', null, function () {
             textureReady ++;
         });
         frameBufferTextures.push(new GLFrameBufferTexture(gl, null, CANVAS_WIDTH, CANVAS_HEIGHT));
@@ -160,7 +157,7 @@
 
     function initScene(gl) {
         if (gl) {  // 只有在 WebGL 可用的时候才继续
-            gl.clearColor(0.0, 0.0, 0.0, 1.0);                      // 设置擦除颜色为黑色，不透明
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);                      // 设置擦除颜色为黑色，透明
             gl.enable(gl.DEPTH_TEST);                               // 开启“深度测试”, Z-缓存
             gl.enable(gl.BLEND);                                    // 开启混合
             gl.depthFunc(gl.LEQUAL);                                // 这里设置深度测试，满足（深度小或相等的时候才渲染）
@@ -169,55 +166,67 @@
         }
     }
 
+    function drawContent (tmPassed) {
+        
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        rectSprite.uniform.textureMatrix.setValue(textureStretchMatrix.flatten());
+        rectSprite.uniform.color.setValue([1.0, 1.0, 1.0, 1.0]);
+        rectSprite.uniform.flag.setValue(0);
+
+        if (spriteBlur){
+            rectSprite.uniform.alpha.setValue(0.40);
+            for (passed = tmPassed - 30; passed <= tmPassed; passed += 2) {
+                var drawX = (passed * 5) % (vw + 100) - 100;
+                var angle = (passed * 0.05);
+                rectSprite.uniform.vertexMatrix.setValue(vertexMatrix.multiply(Matrix.Translation([drawX, 150, 0])).multiply(Matrix.RotationZ(angle).ensure4x4()).flatten());
+                rectSprite.draw();
+            }
+        }else{
+            var drawX = (tmPassed * 5) % (vw + 100) - 100;
+            var angle = (tmPassed * 0.05);
+            rectSprite.uniform.alpha.setValue(1.0);
+            rectSprite.uniform.vertexMatrix.setValue(vertexMatrix.multiply(Matrix.Translation([drawX, 150, 0])).multiply(Matrix.RotationZ(angle).ensure4x4()).flatten());
+            rectSprite.draw();
+        }
+    }
+
     function drawScene() {
         if (!textureReady){
             return;
         }
-
-        frameBufferIndex = (frameBufferIndex + 1) % 2;
-        var frontFrameBuffer = frameBufferTextures[frameBufferIndex % 2];
-        var backFrameBuffer = frameBufferTextures[(frameBufferIndex + 1) % 2];
-        // ---------------------------------------------------------------------
-        frontFrameBuffer.begin();
-        
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-        backFrameBuffer.activeWith(shader.uniform.samplerBack, 0);
-        imageTexture.activeWith(shader.uniform.samplerFront, 1);
-
-        rectScreen.uniform.vertexMatrix.setValue(vertexMatrix.flatten());
-        rectScreen.uniform.textureMatrix.setValue(textureStretchMatrix.flatten());
-        rectScreen.uniform.flag.setValue(0);
-        rectScreen.draw();
-
-        if (shapes.length) {
-            pointGroup = new ShapeGroup(shader);
-            pointGroup.uniform.textureMatrix.setValue(textureClipMatrix.flatten());
-            pointGroup.uniform.frag2ScreenMatrix.setValue(frag2ScreenMatrix.flatten());
-            pointGroup.uniform.flag.setValue(1);
-            pointGroup.uniform.color.setValue([1.0, 1.0, 1.0, 1.0]);
-            pointGroup.uniform.pointSize.setValue(POINT_SIZE);
-            pointGroup.takeFrom(shapes);
-            pointGroup.draw();
-            fading = MAX_FADING;
+        if (!tmStarted){
+            tmStarted = Date.now();
         }
+        if  (!paused){
+            tmPassed = Date.now() - tmStarted;
+        }
+        
+        if (fullBlur){
+            var frameBuffer = frameBufferTextures[0];
 
-        frontFrameBuffer.end();
-        // ---------------------------------------------------------------------
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        frontFrameBuffer.activeWith(shader.uniform.samplerBack, 0);
-        imageTexture.activeWith(shader.uniform.samplerFront, 1);
+            for (passed = tmPassed - 30; passed <= tmPassed; passed += 2)
+            {
+                frameBuffer.begin();
+                drawContent(passed);
+                frameBuffer.end();
 
-        rectScreen.uniform.vertexMatrix.setValue(vertexMatrix.flatten());
-        rectScreen.uniform.textureMatrix.setValue(textureStretchMatrix.flatten());
-        rectScreen.uniform.flag.setValue(2);
-        rectScreen.draw();
-
+                frameBuffer.activeWith(shader.uniform.samplerFront, 0);
+                rectScreen.uniform.vertexMatrix.setValue(vertexMatrix.flatten());
+                rectScreen.uniform.textureMatrix.setValue(textureStretchMatrix.flatten());
+                rectScreen.uniform.flag.setValue(1);
+                rectScreen.uniform.alpha.setValue(0.40);
+                rectScreen.draw();
+            }
+        }else{
+            drawContent(tmPassed);
+        }
         frameCount ++;
     }
 
     function refreshPage () {
+        drawScene();
         if (shapes.length > 0 || fading > 0){
             fading --;
             drawScene();
@@ -268,7 +277,11 @@
             if(rectScreen){
                 rectScreen.delete();
             }
+            if(rectSprite){
+                rectSprite.delete();
+            }
             rectScreen = new Rect(shader, 0, 0, vw, vh);
+            rectSprite = new Rect(shader, 0, 0, 100, 100);
             vertexMatrix = Matrix.Translation([-1, 1, 0]).multiply(Matrix.Scale([2.0/vw, -2.0/vh, 1, 1]));
             if (vw > vh){
                 textureClipMatrix = Matrix.Translation([0.5, 0.5, 0]).multiply(Matrix.Scale([0.5, vh/vw/2, 1, 1]));
@@ -281,9 +294,18 @@
                 drawScene();
             }
         });
-        document.getElementById('glcanvas').addEventListener('click', onClick);
-        document.getElementById('glcanvas').addEventListener('touchstart', onTouch);
-        document.getElementById('glcanvas').addEventListener('touchmove', onTouch);
+        //document.getElementById('glcanvas').addEventListener('click', onClick);
+        //document.getElementById('glcanvas').addEventListener('touchstart', onTouch);
+        //document.getElementById('glcanvas').addEventListener('touchmove', onTouch);
+        document.getElementById('btn_full_blur').addEventListener('click', function () {
+            fullBlur = ! fullBlur;
+        });
+        document.getElementById('btn_sprite_blur').addEventListener('click', function () {
+            spriteBlur = ! spriteBlur;
+        });
+        document.getElementById('btn_paused').addEventListener('click', function () {
+            paused = ! paused;
+        });
         document.getElementById('btn_fullscreen').addEventListener('click', requestFullScreen);
         document.addEventListener("fullscreenchange", function () {
             window.console.log('onFullscreenchange');
