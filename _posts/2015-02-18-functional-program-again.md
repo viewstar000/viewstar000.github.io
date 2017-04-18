@@ -1,9 +1,9 @@
 ---
 layout: post
 title: 又见函数式编程
-categories: python functional
+categories: python
 date: 2015-02-18 15:23:10
-tags: python functional dsl 高阶函数
+tags: python functional DSL 高阶函数
 description: 本文不打算完整的介绍什么是函数编程，仅仅是笔者在实践中总结的一点感想，以及如何在PYTHON中实现一个简单的DSL以支持一些函数式编程的高级特性。
 ---
 

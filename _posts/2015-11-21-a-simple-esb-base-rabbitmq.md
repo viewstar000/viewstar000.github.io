@@ -2,7 +2,7 @@
 layout: post
 title: 基于RabbitMQ构建ESB
 author: lili01
-categories: ['python', 'esb']
+categories: ['python']
 tags: ['python', 'esb', 'soa', 'mq', 'rabbitmq']
 published: True
 description: ESB，全称Enterprise Service Bus，就是专门用于搭建总线型的拓扑结构的解决方案。而业界也已经有很用比较成熟的ESB中间可用。在SOA中，ESB也是一个非常重要组件。很多ESB中间件的核心就是一组消息队列，那么是否有可能利用已有的MQ中间件，搭建一个简单的ESB呢？本文就介绍了一种利用RabbitMQ搭建一个轻量级ESB方法。

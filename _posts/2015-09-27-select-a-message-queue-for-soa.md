@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 消息队列选型
-categories: ["architecture", "message queue"]
+categories: ["arch"]
 tags: ["mq", "activemq", "rabbitmq", "kafka", "zeromq", "nmq"]
 published: True
 description: 近期在规则一些平台化相关的技术架构，其中一个核心的组件就是消息队列，因此对目前市面上的消息队列方案进行了对比和选型

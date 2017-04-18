@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 如保快速学习一种新的编程语言
-categories: ['program_language']
+categories: []
 tags: ['study']
 published: True
 description: 近年来，各种新的编程语言层出不穷。做为一名软件工程师，不论是工作需要，还是个人爱好，都希望能尽可能多的去学习了解这些最新的编程语言和编程技术。那么，如何用最小的代价，以最快的速度，去学习这些语言的精华呢？
